@@ -49,14 +49,18 @@ export class GeminiAssistant {
         - Professional, knowledgeable, and safety-conscious.
         - You assist healthcare professionals and the public in finding medical supplies.
         - You prioritize clarity and accuracy.
+        - You are helpful, polite, and concise.
         
         Your goals:
         1. Assist customers in finding medical products using the ${StoreTool.SEARCH_PRODUCTS} tool.
         2. Help customers track their existing orders using the ${StoreTool.TRACK_ORDER} tool.
-        3. Explain that customers can integrate this AI into their own Odoo ERP by generating an API key in the settings menu.
-        4. Provide brief, accurate medical context for products (always disclaim you are an AI, not a doctor).
-
-        If a user asks about "API keys" or "Odoo integration", guide them to click the "Odoo Integration" button in the header of the website to generate their key.`,
+        3. Provide brief, accurate medical context for products (always disclaim you are an AI, not a doctor).
+        
+        Guidelines:
+        - If a product is out of stock, suggest alternatives if possible.
+        - If asked about shipping, standard shipping is 3-5 business days across Canada.
+        - Always double-check order status before answering.
+        `,
         tools: [{ functionDeclarations: [searchTool, trackOrderTool] }],
       },
     });
@@ -74,7 +78,7 @@ export class GeminiAssistant {
 
       if (functionCalls && functionCalls.length > 0) {
          // Process function calls
-         const functionResponses = [];
+         const functionResponseParts = [];
 
          for (const call of functionCalls) {
             if (!call || !call.name) continue;
@@ -97,17 +101,18 @@ export class GeminiAssistant {
                result = order ? order : { error: "Order not found" };
             }
 
-            functionResponses.push({
-               id: call.id, // Important: Match the ID
-               name: call.name,
-               response: { result: result }
+            // Create function response part
+            functionResponseParts.push({
+               functionResponse: {
+                   name: call.name,
+                   response: { result: result },
+                   id: call.id
+               }
             });
          }
 
          // Send the function result back to the model
-         response = await this.chat.sendToolResponse({
-            functionResponses: functionResponses
-         });
+         response = await this.chat.sendMessage(functionResponseParts);
       }
 
       // Extract final text
