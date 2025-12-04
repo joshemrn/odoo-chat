@@ -1,5 +1,7 @@
 {
   "name": "EMRN AI Assistant",
   "description": "An intelligent e-commerce assistant for EMRN, integrated with Gemini 2.5 Flash to help visitors find products and track orders.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }

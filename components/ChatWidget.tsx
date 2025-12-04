@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, X, MessageCircle, Loader2, Package, Sparkles } from 'lucide-react';
+import { Send, Bot, X, MessageCircle, Loader2, Package, Sparkles, Mic, MicOff } from 'lucide-react';
 import { GeminiAssistant } from '../services/geminiService';
 import { ChatMessage, Product } from '../types';
 import ProductCard from './ProductCard';
@@ -11,6 +11,10 @@ const ChatWidget: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [gemini] = useState(() => new GeminiAssistant());
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Voice Input State
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
 
   const toggleChat = () => setIsOpen(!isOpen);
 
@@ -36,9 +40,68 @@ const ChatWidget: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
+  // Cleanup speech recognition on unmount
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, []);
+
+  const handleVoiceInput = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    
+    if (!SpeechRecognition) {
+      alert("Voice input is not supported in this browser.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.interimResults = true;
+    recognition.continuous = false;
+
+    recognition.onstart = () => {
+      setIsListening(true);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error("Speech recognition error", event.error);
+      setIsListening(false);
+    };
+
+    recognition.onresult = (event: any) => {
+      const transcript = Array.from(event.results)
+        .map((result: any) => result[0])
+        .map((result) => result.transcript)
+        .join('');
+      setInput(transcript);
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
+
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!input.trim() || isLoading) return;
+
+    // Stop listening if we send
+    if (isListening) {
+        recognitionRef.current?.stop();
+        setIsListening(false);
+    }
 
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
@@ -169,10 +232,25 @@ const ChatWidget: React.FC = () => {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask about products or orders..."
-              className="flex-1 bg-gray-100 text-gray-800 placeholder-gray-400 border-0 rounded-full px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-sm"
+              placeholder={isListening ? "Listening..." : "Ask about products or orders..."}
+              className={`flex-1 bg-gray-100 text-gray-800 placeholder-gray-400 border-0 rounded-full px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-sm ${isListening ? 'ring-2 ring-red-500 bg-red-50' : ''}`}
               disabled={isLoading}
             />
+            
+            <button
+              type="button"
+              onClick={handleVoiceInput}
+              disabled={isLoading}
+              className={`p-3 rounded-full transition-all duration-200 flex-shrink-0 shadow-sm ${
+                isListening 
+                  ? 'bg-red-500 text-white animate-pulse' 
+                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700'
+              }`}
+              title="Speak"
+            >
+              {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+            </button>
+
             <button
               type="submit"
               disabled={isLoading || !input.trim()}
